@@ -49,7 +49,12 @@ client.on('messageCreate', msg => {
 
         msg.reply(' .. Yours: ' + usrCreated + "\n" + '.. Today: ' + today);
 
-    } 
+    }
+    else if (msg.content.startsWith('w.agecheck')) {
+        const list = client.guilds.find('id', msg.guildId);
+        console.log(list);
+        msg.channel.send(msg.guildId);
+    }
 });
 
 // when a new member joins the server
