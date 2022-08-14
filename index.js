@@ -58,6 +58,7 @@ database.all("UPDATE settings SET value = DATETIME() WHERE name = 'lastRun'", fu
                         memberId varchar(20),
                         memberName varchar(200),
                         memberSeen datetime,
+                        memberAllow boolean,
                         PRIMARY KEY (memberId)
                     );
                 `);
@@ -261,6 +262,20 @@ client.on('messageCreate', msg => {
         msg.channel.send("Found the following:" + members);
 
     }
+    else if (msg.content.startsWith('w.allow')) {
+        // w.allow <memberId> - will allow memberId to join the server, even if it's a new account.
+        let args = msg.content.split(' ');
+
+        if (args[1] == undefined) {
+            msg.channel.send("Invalid request, missing memberId.");
+        }
+        else {
+            database.exec("INSERT INTO members (memberId, memberName, memberAllow, memberSeen) VALUES('" + args[1] + "', 'n/a', true, DATETIME()) ON CONFLICT(memberId) DO UPDATE SET memberAllow = true");
+            // find user by id, but only if on the same server. console.log(client.users.cache.find(user => user.id === args[1]));
+            msg.channel.send("An override for " + args[1] + " has been added.");
+        }
+
+    }
     else if (msg.content.startsWith('w.users')) {
         console.log('> ' + msg.author.username + ' (' + msg.author + ') requested List Users on ' + msg.guild.name + ' (' + msg.guild + ')');
         // the list of members
@@ -319,18 +334,38 @@ client.on('guildMemberAdd', member => {
 
     // add the member to the database if it doesn't exist
     // add their join time
-    database.exec("INSERT INTO memberguilds VALUES('" + member.user + "', '" + member.guild + "', DATETIME())")
-    database.exec("INSERT INTO members VALUES('" + member.user + "', '" + member.user.username + "', DATETIME())")
+    database.exec("INSERT INTO memberguilds VALUES('" + member.user + "', '" + member.guild + "', DATETIME())");
+    database.exec("INSERT INTO members (memberId, memberName, memberSeen) VALUES('" + member.user + "', '" + member.user.username + "', DATETIME()) ON CONFLICT(memberId) DO UPDATE SET memberName = '" + member.user.username + "'");
 
     try {
-        console.log('3'+lastSeen);
+        // check here to see if they are already allowed
         if (checkAge(member) == false) {
-            console.log('& Checking age of ' + member.user.username + ' (' + member.user + ') ... [' + dateFormat(member.user.createdAt) + '] FAILED!' + lastSeen);
-            client.channels.cache.get(setting.logChannel).send('<@' + member.user + '> (' + member.user.username + ' | ' + member.user + ') has been kicked, account age too young [' + dateFormat(member.user.createdAt) + '].');
-            member.kick('Account less than two months old.');
+            database.get("SELECT * FROM members WHERE memberId = '" + member.user + "'", function(err, result) {
+                if (result) {
+                    if (result.memberAllow == true) {
+                        console.log('& Checking age of ' + member.user.username + ' (' + member.user + ') ... [' + dateFormat(member.user.createdAt) + '] FAILED! However an override has been called.' + lastSeen);
+                        client.channels.cache.get(setting.logChannel).send('<@' + member.user + '> (' + member.user.username + ' | ' + member.user + ') has joined, account age too young [' + dateFormat(member.user.createdAt) + '], but an override has been found.');
+                        database.exec("UPDATE members SET memberAllow = true WHERE memberId = '" + member.user + "'");
+                    }
+                    else {
+                        console.log('& Checking age of ' + member.user.username + ' (' + member.user + ') ... [' + dateFormat(member.user.createdAt) + '] FAILED!' + lastSeen);
+                        client.channels.cache.get(setting.logChannel).send('<@' + member.user + '> (' + member.user.username + ' | ' + member.user + ') has been kicked, account age too young [' + dateFormat(member.user.createdAt) + '].');
+                        database.exec("UPDATE members SET memberAllow = false WHERE memberId = '" + member.user + "'");
+                        member.kick('Account less than two months old.');
+                    }
+                    }
+                else {
+                    console.log('& Checking age of ' + member.user.username + ' (' + member.user + ') ... [' + dateFormat(member.user.createdAt) + '] FAILED!' + lastSeen);
+                    client.channels.cache.get(setting.logChannel).send('<@' + member.user + '> (' + member.user.username + ' | ' + member.user + ') has been kicked, account age too young [' + dateFormat(member.user.createdAt) + '].');
+                    database.exec("UPDATE members SET memberAllow = false WHERE memberId = '" + member.user + "'");
+                    member.kick('Account less than two months old.');
+                }
+            });
+
         } else {
             console.log('& Checking age of ' + member.user.username + ' (' + member.user + ') ... [' + dateFormat(member.user.createdAt) + '] PASSED!..' + lastSeen);
             client.channels.cache.get(setting.logChannel).send('<@' + member.user + '> (' + member.user.username + ' | ' + member.user + ') has joined, account age OK [' + dateFormat(member.user.createdAt) + '].');
+            database.exec("UPDATE members SET memberAllow = true WHERE memberId = '" + member.user + "'");
         }
 
     } catch (error) {
