@@ -12,6 +12,7 @@ const setting = {
 
 console.log('- Loading constants ...');
 // required configuration
+require('console-stamp')(console, 'HH:MM:ss');
 const dotenv = require('dotenv').config();
 const package = require('./package.json');
 const sqlite3 = require('sqlite3');
