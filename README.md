@@ -5,9 +5,9 @@ Should contain at least the following:
     BOT_TOKEN=DISCORD-BOT-TOKEN-HERE
 
 ## Installation
-apt install nodejs npm
-npm install nodemon
-npm install
+- apt install nodejs npm
+- npm install nodemon
+- npm install
 
 ## Running the bot
 - To start DEV mode (will reload after every file save): npm init dev
